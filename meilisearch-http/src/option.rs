@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use structopt::StructOpt;
 
 const POSSIBLE_ENV: [&str; 2] = ["development", "production"];
@@ -33,5 +35,13 @@ pub struct Opt {
 
     /// The maximum size, in bytes, of the update lmdb database directory
     #[structopt(long, env = "MEILI_UPDATE_MAP_SIZE", default_value = "107374182400")] // 100GB
-    pub update_map_size: usize
+    pub update_map_size: usize,
+
+    /// The path to the cert.pem file
+    #[structopt(long, env = "MEILI_SSL_CERT_PATH", parse(from_os_str))] // 100GB
+    pub ssl_cert_path: Option<PathBuf>,
+
+    /// The path to the key.pem file
+    #[structopt(long, env = "MEILI_SSL_KEY_PATH", parse(from_os_str))] // 100GB
+    pub ssl_key_path: Option<PathBuf>,
 }

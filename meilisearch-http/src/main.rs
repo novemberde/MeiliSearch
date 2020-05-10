@@ -1,4 +1,6 @@
 use std::{env, thread};
+use std::fs::File;
+use std::io::BufReader;
 
 use actix_cors::Cors;
 use actix_web::{middleware, HttpServer};
@@ -7,7 +9,10 @@ use main_error::MainError;
 use meilisearch_http::data::Data;
 use meilisearch_http::option::Opt;
 use meilisearch_http::{create_app, index_update_callback};
+use rustls::internal::pemfile::{certs, rsa_private_keys};
+use rustls::{NoClientAuth, ServerConfig};
 use structopt::StructOpt;
+use actix_files::Files;
 
 mod analytics;
 
@@ -62,7 +67,7 @@ async fn main() -> Result<(), MainError> {
 
     print_launch_resume(&opt, &data);
 
-    HttpServer::new(move || {
+    let http_server = HttpServer::new(move || {
         create_app(&data)
             .wrap(
                 Cors::new()
@@ -72,10 +77,25 @@ async fn main() -> Result<(), MainError> {
             )
             .wrap(middleware::Logger::default())
             .wrap(middleware::Compress::default())
-    })
-    .bind(opt.http_addr)?
-    .run()
-    .await?;
+    });
+
+    if let (Some(cert_path), Some(key_path)) = (opt.ssl_cert_path, opt.ssl_key_path) {
+        let mut config = ServerConfig::new(NoClientAuth::new());
+        let cert_file = &mut BufReader::new(File::open(cert_path).unwrap());
+        let key_file = &mut BufReader::new(File::open(key_path).unwrap());
+        let cert_chain = certs(cert_file).unwrap();
+        let mut keys = rsa_private_keys(key_file).unwrap();
+        config.set_single_cert(cert_chain, keys.remove(0)).unwrap();
+        http_server
+            .bind_rustls(opt.http_addr, config)?
+            .run()
+            .await?;
+    } else {
+        http_server
+            .bind(opt.http_addr)?
+            .run()
+            .await?;
+    }
 
     Ok(())
 }
